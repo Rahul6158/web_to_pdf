@@ -29,10 +29,8 @@ if st.button("Generate PDF"):
     if url:
         soup = fetch_webpage(url)
         if soup:
-            # Extract content and format it as needed
-            content = str(soup)
-            
             # Convert HTML to PDF
+            content = str(soup)
             pdf_path = convert_to_pdf(content)
             
             # Provide download link

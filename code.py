@@ -1,14 +1,12 @@
 import streamlit as st
 import requests
-from bs4 import BeautifulSoup
 from weasyprint import HTML
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
     response = requests.get(url)
     if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
-        return soup
+        return response.text
     else:
         st.error("Failed to retrieve the webpage.")
         return None
@@ -27,11 +25,10 @@ url = st.text_input("Enter the URL of the webpage")
 
 if st.button("Generate PDF"):
     if url:
-        soup = fetch_webpage(url)
-        if soup:
+        html_content = fetch_webpage(url)
+        if html_content:
             # Convert HTML to PDF
-            content = str(soup)
-            pdf_path = convert_to_pdf(content)
+            pdf_path = convert_to_pdf(html_content)
             
             # Provide download link
             st.success("PDF generated successfully!")

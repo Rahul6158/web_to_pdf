@@ -6,11 +6,12 @@ from io import BytesIO
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
-    response = requests.get(url)
-    if response.status_code == 200:
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
         return response.text
-    else:
-        st.error("Failed to retrieve the webpage.")
+    except requests.RequestException as e:
+        st.error(f"Failed to retrieve the webpage: {e}")
         return None
 
 # Function to fetch external CSS files and include them in the HTML content
@@ -21,16 +22,18 @@ def include_css(soup, base_url):
         if href:
             if not href.startswith("http"):
                 href = f"{base_url}/{href}"
-            css_response = requests.get(href)
-            if css_response.status_code == 200:
+            try:
+                css_response = requests.get(href)
+                css_response.raise_for_status()
                 style_tag = soup.new_tag("style", type="text/css")
                 style_tag.string = css_response.text
                 link.replace_with(style_tag)
+            except requests.RequestException as e:
+                st.warning(f"Failed to load CSS from {href}: {e}")
     return str(soup)
 
 # Function to extract the main content of the webpage
 def extract_main_content(soup):
-    # Adjust this part to fit the webpage structure
     main_content = soup.find('main') or soup.find('article')
     if not main_content:
         main_content = soup.find('div', class_='main-content') or soup.find('div', id='main-content') or soup.find('div', class_='content') or soup.find('div', id='content')
@@ -44,7 +47,6 @@ def extract_main_content(soup):
 def style_html_content(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
     
-    # Ensure the <html> and <head> tags exist
     if not soup.html:
         html_tag = soup.new_tag("html")
         soup.insert(0, html_tag)
@@ -52,7 +54,6 @@ def style_html_content(html_content):
         head_tag = soup.new_tag("head")
         soup.html.insert(0, head_tag)
     
-    # Add custom styles
     style_tag = soup.new_tag("style")
     style_tag.string = """
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -68,10 +69,10 @@ def style_html_content(html_content):
     }
     img {
         display: block;
-        width: 100%; /* Sets the image width to 100% of the container's width */
-        height: auto; /* Maintains the aspect ratio of the image */
-        margin-left: auto; /* Centers the image horizontally */
-        margin-right: auto; /* Centers the image horizontally */
+        width: 100%;
+        height: auto;
+        margin-left: auto;
+        margin-right: auto;
     }
     p {
         text-align: justify;
@@ -83,10 +84,14 @@ def style_html_content(html_content):
 
 # Function to convert the HTML content to PDF and return as bytes
 def convert_to_pdf(html_content):
-    pdf = BytesIO()
-    HTML(string=html_content).write_pdf(pdf)
-    pdf.seek(0)
-    return pdf
+    try:
+        pdf = BytesIO()
+        HTML(string=html_content).write_pdf(pdf)
+        pdf.seek(0)
+        return pdf
+    except Exception as e:
+        st.error(f"Failed to convert HTML to PDF: {e}")
+        return None
 
 # Streamlit application
 def main():
@@ -102,22 +107,19 @@ def main():
                 base_url = "/".join(url.split("/")[:-1])
                 html_with_css = include_css(soup, base_url)
                 
-                # Extract main content
                 main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
-                
-                # Add custom styles
                 styled_html_content = style_html_content(main_content_html)
                 
-                # Convert styled HTML to PDF
                 pdf = convert_to_pdf(styled_html_content)
                 
-                st.success("PDF generated successfully!")
-                st.download_button(
-                    label="Download PDF",
-                    data=pdf,
-                    file_name="webpage.pdf",
-                    mime="application/pdf"
-                )
+                if pdf:
+                    st.success("PDF generated successfully!")
+                    st.download_button(
+                        label="Download PDF",
+                        data=pdf,
+                        file_name="webpage.pdf",
+                        mime="application/pdf"
+                    )
         else:
             st.error("Please enter a valid URL.")
 

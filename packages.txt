@@ -5,4 +5,3 @@ libffi-devel
 libjpeg-devel
 libpng-devel
 libxml2-devel
-python3-pip

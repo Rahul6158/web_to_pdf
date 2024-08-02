@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from weasyprint import HTML
+import tempfile
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -81,13 +82,16 @@ def style_html_content(html_content):
     return str(soup)
 
 # Function to convert the webpage to PDF
-def convert_to_pdf(html_content, output_path):
+def convert_to_pdf(html_content):
     try:
-        html = HTML(string=html_content)
-        html.write_pdf(output_path)
-        st.success(f"PDF generated successfully: {output_path}")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            html = HTML(string=html_content)
+            html.write_pdf(temp_file.name)
+            st.success(f"PDF generated successfully: {temp_file.name}")
+            return temp_file.name
     except Exception as e:
         st.error(f"Failed to generate PDF: {e}")
+        return None
 
 # Streamlit app
 def main():
@@ -107,11 +111,13 @@ def main():
 
                 styled_html_content = style_html_content(main_content_html)
 
-                output_path = "webpage.pdf"
-                convert_to_pdf(styled_html_content, output_path)
+                output_path = convert_to_pdf(styled_html_content)
 
-                with open(output_path, "rb") as file:
-                    btn = st.download_button(label="Download PDF", data=file, file_name=output_path, mime="application/pdf")
+                if output_path:
+                    with open(output_path, "rb") as file:
+                        st.download_button(label="Download PDF", data=file, file_name="webpage.pdf", mime="application/pdf")
+                else:
+                    st.error("PDF file not found. Conversion may have failed.")
             else:
                 st.error("Failed to retrieve the webpage content.")
         else:

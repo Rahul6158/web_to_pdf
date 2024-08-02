@@ -4,3 +4,4 @@ libgdk-pixbuf2.0-0
 libffi-dev
 libjpeg-dev
 libopenjp2-7-dev
+wkhtmltopdf

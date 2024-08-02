@@ -1,7 +1,7 @@
+import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import streamlit as st
-from io import StringIO
+from weasyprint import HTML
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -28,12 +28,11 @@ def include_css(soup, base_url):
                 style_tag.string = css_response.text
                 link.replace_with(style_tag)
             except requests.RequestException as e:
-                st.warning(f"Failed to retrieve CSS file {href}: {e}")
+                st.error(f"Failed to retrieve CSS file {href}: {e}")
     return str(soup)
 
 # Function to extract the main content of the webpage
 def extract_main_content(soup):
-    # Adjust this part to fit the webpage structure
     main_content = soup.find('main') or soup.find('article')
     if not main_content:
         main_content = soup.find('div', class_='main-content') or soup.find('div', id='main-content') or soup.find('div', class_='content') or soup.find('div', id='content')
@@ -47,7 +46,6 @@ def extract_main_content(soup):
 def style_html_content(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
 
-    # Ensure the <html> and <head> tags exist
     if not soup.html:
         html_tag = soup.new_tag("html")
         soup.insert(0, html_tag)
@@ -55,7 +53,6 @@ def style_html_content(html_content):
         head_tag = soup.new_tag("head")
         soup.html.insert(0, head_tag)
 
-    # Add custom styles
     style_tag = soup.new_tag("style")
     style_tag.string = """
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -81,30 +78,44 @@ def style_html_content(html_content):
     }
     """
     soup.head.append(style_tag)
-
     return str(soup)
+
+# Function to convert the webpage to PDF
+def convert_to_pdf(html_content, output_path):
+    try:
+        html = HTML(string=html_content)
+        html.write_pdf(output_path)
+        st.success(f"PDF generated successfully: {output_path}")
+    except Exception as e:
+        st.error(f"Failed to generate PDF: {e}")
 
 # Streamlit app
 def main():
-    st.title("Webpage Content Viewer")
+    st.title("Webpage to PDF Converter")
 
-    url = st.text_input("Enter the URL of the webpage:", "https://example.com")
+    url = st.text_input("Enter the URL of the webpage")
 
-    if url:
-        html_content = fetch_webpage(url)
-        if html_content:
-            soup = BeautifulSoup(html_content, "html.parser")
-            base_url = requests.compat.urljoin(url, '/')
-            html_with_css = include_css(soup, base_url)
+    if st.button("Convert to PDF"):
+        if url:
+            html_content = fetch_webpage(url)
+            if html_content:
+                soup = BeautifulSoup(html_content, "html.parser")
+                base_url = requests.compat.urljoin(url, '/')
+                html_with_css = include_css(soup, base_url)
 
-            # Extract main content
-            main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
+                main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
 
-            # Add custom styles
-            styled_html_content = style_html_content(main_content_html)
+                styled_html_content = style_html_content(main_content_html)
 
-            # Display HTML content in Streamlit
-            st.markdown(styled_html_content, unsafe_allow_html=True)
+                output_path = "webpage.pdf"
+                convert_to_pdf(styled_html_content, output_path)
+
+                with open(output_path, "rb") as file:
+                    btn = st.download_button(label="Download PDF", data=file, file_name=output_path, mime="application/pdf")
+            else:
+                st.error("Failed to retrieve the webpage content.")
+        else:
+            st.error("Please enter a valid URL.")
 
 if __name__ == "__main__":
     main()

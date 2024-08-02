@@ -6,4 +6,4 @@ libjpeg-dev
 libopenjp2-7-dev
 cffi==1.15.1
 cssselect==1.1.0
-pycairo==1.23.0
+

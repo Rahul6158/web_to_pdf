@@ -1,8 +1,12 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-from weasyprint import HTML
+import pdfkit
 import tempfile
+import os
+
+# Configure pdfkit to use wkhtmltopdf
+pdfkit_config = pdfkit.configuration(wkhtmltopdf='/path/to/wkhtmltopdf')  # Update with the path to your wkhtmltopdf binary
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -85,8 +89,7 @@ def style_html_content(html_content):
 def convert_to_pdf(html_content):
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-            html = HTML(string=html_content)
-            html.write_pdf(temp_file.name)
+            pdfkit.from_string(html_content, temp_file.name, configuration=pdfkit_config)
             st.success(f"PDF generated successfully: {temp_file.name}")
             return temp_file.name
     except Exception as e:
@@ -116,6 +119,7 @@ def main():
                 if output_path:
                     with open(output_path, "rb") as file:
                         st.download_button(label="Download PDF", data=file, file_name="webpage.pdf", mime="application/pdf")
+                    os.remove(output_path)  # Clean up the temporary file
                 else:
                     st.error("PDF file not found. Conversion may have failed.")
             else:
@@ -125,4 +129,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

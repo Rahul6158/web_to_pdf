@@ -1,7 +1,6 @@
-pango-devel
-cairo-devel
-gdk-pixbuf2-devel
-libffi-devel
-libjpeg-devel
-libpng-devel
-libxml2-devel
+libcairo2
+libpango1.0-0
+libgdk-pixbuf2.0-0
+libffi-dev
+libjpeg-dev
+libopenjp2-7-dev

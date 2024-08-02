@@ -4,5 +4,6 @@ libgdk-pixbuf2.0-0
 libffi-dev
 libjpeg-dev
 libopenjp2-7-dev
-cairo
-pango
+libpango1.0-dev
+libgdk-pixbuf2.0-dev
+libcairo2-dev

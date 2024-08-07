@@ -1,89 +1,215 @@
 import streamlit as st
-from PyPDF2 import PdfReader, PdfWriter, PdfMerger
+from PyPDF2 import PdfFileReader, PdfFileWriter
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
-# Function to remove selected pages from a PDF
-def remove_pages(input_pdf, pages_to_remove):
-    reader = PdfReader(input_pdf)
-    writer = PdfWriter()
+# Helper function to create a PDF with text
+def create_pdf(text):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    c.drawString(100, 750, text)
+    c.save()
+    buffer.seek(0)
+    return buffer
 
-    for page_num in range(len(reader.pages)):
-        if page_num not in pages_to_remove:
-            writer.add_page(reader.pages[page_num])
+# Helper function to read PDF and return text
+def extract_text_from_first_page(pdf_file):
+    pdf = PdfFileReader(pdf_file)
+    first_page = pdf.getPage(0)
+    return first_page.extract_text()
 
-    return writer
+# Helper function to merge PDFs
+def merge_pdfs(pdf_files):
+    merged_pdf = PdfFileWriter()
+    for pdf_file in pdf_files:
+        reader = PdfFileReader(pdf_file)
+        for page_num in range(reader.numPages):
+            page = reader.getPage(page_num)
+            merged_pdf.addPage(page)
+    buffer = BytesIO()
+    merged_pdf.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-# Function to shuffle pages in a PDF
-def shuffle_pages(input_pdf, new_order):
-    reader = PdfReader(input_pdf)
-    writer = PdfWriter()
+# Helper function to split PDF into separate pages
+def split_pdf(pdf_file):
+    reader = PdfFileReader(pdf_file)
+    pdf_files = []
+    for page_num in range(reader.numPages):
+        writer = PdfFileWriter()
+        writer.addPage(reader.getPage(page_num))
+        buffer = BytesIO()
+        writer.write(buffer)
+        buffer.seek(0)
+        pdf_files.append(buffer)
+    return pdf_files
 
-    for page_num in new_order:
-        writer.add_page(reader.pages[page_num])
+# Helper function to rotate PDF pages
+def rotate_pdf(pdf_file, rotation):
+    reader = PdfFileReader(pdf_file)
+    writer = PdfFileWriter()
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        page.rotateClockwise(rotation)
+        writer.addPage(page)
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-    return writer
+# Helper function to add watermark to PDF
+def add_watermark(pdf_file, watermark_text):
+    reader = PdfFileReader(pdf_file)
+    writer = PdfFileWriter()
+    watermark_pdf = create_pdf(watermark_text)
+    watermark_reader = PdfFileReader(watermark_pdf)
+    watermark_page = watermark_reader.getPage(0)
 
-# Function to merge multiple PDFs
-def merge_pdfs(pdf_list):
-    merger = PdfMerger()
-
-    for pdf in pdf_list:
-        merger.append(pdf)
-
-    return merger
-
-# Streamlit app
-def main():
-    st.title("PDF Editor")
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        page.merge_page(watermark_page)
+        writer.addPage(page)
     
-    menu = ["Remove Selected Pages", "Shuffle Pages", "Merge PDFs"]
-    choice = st.sidebar.selectbox("Select an option", menu)
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-    if choice == "Remove Selected Pages":
-        st.header("Remove Selected Pages")
-        uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
-        if uploaded_file is not None:
-            num_pages = PdfReader(uploaded_file).get_num_pages()
-            pages_to_remove = st.multiselect("Select pages to remove (0-indexed)", list(range(num_pages)))
-            if st.button("Remove Pages"):
-                output_writer = remove_pages(uploaded_file, pages_to_remove)
-                output_path = "output_removed_pages.pdf"
-                with open(output_path, "wb") as output_file:
-                    output_writer.write(output_file)
-                st.success(f"PDF saved without selected pages: {output_path}")
-                with open(output_path, "rb") as file:
-                    btn = st.download_button(label="Download PDF", data=file, file_name="output_removed_pages.pdf")
+# Helper function to encrypt PDF
+def encrypt_pdf(pdf_file, password):
+    reader = PdfFileReader(pdf_file)
+    writer = PdfFileWriter()
+    
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        writer.addPage(page)
+    
+    writer.encrypt(password)
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-    elif choice == "Shuffle Pages":
-        st.header("Shuffle Pages")
-        uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
-        if uploaded_file is not None:
-            num_pages = PdfReader(uploaded_file).get_num_pages()
-            new_order = st.text_input(f"Enter the new order of pages (comma separated, 0-{num_pages-1})")
-            if st.button("Shuffle Pages"):
-                new_order = [int(x) for x in new_order.split(",")]
-                output_writer = shuffle_pages(uploaded_file, new_order)
-                output_path = "output_shuffled_pages.pdf"
-                with open(output_path, "wb") as output_file:
-                    output_writer.write(output_file)
-                st.success(f"PDF saved with shuffled pages: {output_path}")
-                with open(output_path, "rb") as file:
-                    btn = st.download_button(label="Download PDF", data=file, file_name="output_shuffled_pages.pdf")
+# Helper function to decrypt PDF
+def decrypt_pdf(pdf_file, password):
+    reader = PdfFileReader(pdf_file)
+    if reader.isEncrypted:
+        reader.decrypt(password)
+    
+    writer = PdfFileWriter()
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        writer.addPage(page)
+    
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
+
+def main():
+    st.title("PDF Editor Tool")
+
+    menu = ["Create PDF", "Extract Text", "Merge PDFs", "Split PDF", "Rotate PDF", 
+            "Add Watermark", "Encrypt PDF", "Decrypt PDF"]
+    choice = st.sidebar.selectbox("Menu", menu)
+
+    if choice == "Create PDF":
+        st.subheader("Create PDF")
+        text = st.text_area("Enter text to add to PDF")
+        if st.button("Create PDF"):
+            pdf = create_pdf(text)
+            st.download_button(
+                label="Download PDF",
+                data=pdf,
+                file_name="created_pdf.pdf",
+                mime="application/pdf"
+            )
+
+    elif choice == "Extract Text":
+        st.subheader("Extract Text from PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        if pdf_file is not None:
+            text = extract_text_from_first_page(pdf_file)
+            st.write("Extracted Text:")
+            st.write(text)
 
     elif choice == "Merge PDFs":
-        st.header("Merge PDFs")
-        num_pdfs = st.number_input("Enter the number of PDFs to merge", min_value=2, max_value=10, step=1)
-        uploaded_files = [st.file_uploader(f"Upload PDF {i+1}", type=["pdf"]) for i in range(num_pdfs)]
-        
-        if all(uploaded_files) and st.button("Merge PDFs"):
-            merger = PdfMerger()
-            for uploaded_file in uploaded_files:
-                merger.append(uploaded_file)
-            output_path = "output_merged.pdf"
-            with open(output_path, "wb") as output_file:
-                merger.write(output_file)
-            st.success(f"Merged PDF saved as: {output_path}")
-            with open(output_path, "rb") as file:
-                btn = st.download_button(label="Download PDF", data=file, file_name="output_merged.pdf")
+        st.subheader("Merge PDFs")
+        pdf_files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
+        if st.button("Merge PDFs"):
+            merged_pdf = merge_pdfs(pdf_files)
+            st.download_button(
+                label="Download Merged PDF",
+                data=merged_pdf,
+                file_name="merged_pdf.pdf",
+                mime="application/pdf"
+            )
 
-if __name__ == "__main__":
+    elif choice == "Split PDF":
+        st.subheader("Split PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        if st.button("Split PDF"):
+            split_files = split_pdf(pdf_file)
+            for i, pdf in enumerate(split_files):
+                st.download_button(
+                    label=f"Download Page {i+1}",
+                    data=pdf,
+                    file_name=f"page_{i+1}.pdf",
+                    mime="application/pdf"
+                )
+
+    elif choice == "Rotate PDF":
+        st.subheader("Rotate PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        rotation = st.selectbox("Rotation", [90, 180, 270])
+        if st.button("Rotate PDF"):
+            rotated_pdf = rotate_pdf(pdf_file, rotation)
+            st.download_button(
+                label="Download Rotated PDF",
+                data=rotated_pdf,
+                file_name="rotated_pdf.pdf",
+                mime="application/pdf"
+            )
+
+    elif choice == "Add Watermark":
+        st.subheader("Add Watermark to PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        watermark_text = st.text_input("Enter watermark text")
+        if st.button("Add Watermark"):
+            watermarked_pdf = add_watermark(pdf_file, watermark_text)
+            st.download_button(
+                label="Download Watermarked PDF",
+                data=watermarked_pdf,
+                file_name="watermarked_pdf.pdf",
+                mime="application/pdf"
+            )
+
+    elif choice == "Encrypt PDF":
+        st.subheader("Encrypt PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        password = st.text_input("Enter password", type="password")
+        if st.button("Encrypt PDF"):
+            encrypted_pdf = encrypt_pdf(pdf_file, password)
+            st.download_button(
+                label="Download Encrypted PDF",
+                data=encrypted_pdf,
+                file_name="encrypted_pdf.pdf",
+                mime="application/pdf"
+            )
+
+    elif choice == "Decrypt PDF":
+        st.subheader("Decrypt PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        password = st.text_input("Enter password", type="password")
+        if st.button("Decrypt PDF"):
+            decrypted_pdf = decrypt_pdf(pdf_file, password)
+            st.download_button(
+                label="Download Decrypted PDF",
+                data=decrypted_pdf,
+                file_name="decrypted_pdf.pdf",
+                mime="application/pdf"
+            )
+
+if __name__ == '__main__':
     main()

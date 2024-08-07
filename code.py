@@ -2,6 +2,10 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from weasyprint import HTML
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from PyPDF2 import PdfFileReader, PdfFileWriter
+from io import BytesIO
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -81,6 +85,28 @@ def style_html_content(html_content):
 
     return str(soup)
 
+# Function to create a simple text PDF
+def create_simple_text_pdf(text):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    c.drawString(100, 750, text)
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+# Function to merge PDFs
+def merge_pdfs(pdfs):
+    merged_pdf = PdfFileWriter()
+    for pdf in pdfs:
+        reader = PdfFileReader(pdf)
+        for page_num in range(reader.numPages):
+            page = reader.getPage(page_num)
+            merged_pdf.addPage(page)
+    buffer = BytesIO()
+    merged_pdf.write(buffer)
+    buffer.seek(0)
+    return buffer
+
 # Function to convert the webpage to PDF
 def convert_to_pdf(html_content, output_path):
     try:
@@ -120,10 +146,22 @@ def main():
                 st.error(f"Failed to retrieve the webpage content for URL: {url}")
 
         if combined_html_content:
+            # Convert the combined HTML to a PDF using WeasyPrint
             output_path = "combined_webpage.pdf"
-            convert_to_pdf(combined_html_content, output_path)
+            html = HTML(string=combined_html_content)
+            html.write_pdf(output_path)
+
+            # Create a simple text PDF using ReportLab
+            intro_text = "This is an introductory page added to the PDF."
+            intro_pdf = create_simple_text_pdf(intro_text)
+
+            # Merge the intro PDF with the WeasyPrint PDF
             with open(output_path, "rb") as file:
-                st.download_button(label="Download PDF", data=file, file_name=output_path, mime="application/pdf")
+                weasyprint_pdf = file.read()
+            final_pdf = merge_pdfs([intro_pdf, BytesIO(weasyprint_pdf)])
+
+            # Provide the final merged PDF for download
+            st.download_button(label="Download PDF", data=final_pdf, file_name="final_combined_webpage.pdf", mime="application/pdf")
         else:
             st.warning("No valid content to generate PDF.")
 

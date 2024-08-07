@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import pdfkit
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from PyPDF2 import PdfFileReader, PdfFileWriter
+from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 
 # Function to fetch and parse the webpage
@@ -96,12 +96,12 @@ def create_simple_text_pdf(text):
 
 # Function to merge PDFs
 def merge_pdfs(pdfs):
-    merged_pdf = PdfFileWriter()
+    merged_pdf = PdfWriter()
     for pdf in pdfs:
-        reader = PdfFileReader(pdf)
-        for page_num in range(reader.numPages):
-            page = reader.getPage(page_num)
-            merged_pdf.addPage(page)
+        reader = PdfReader(pdf)
+        for page_num in range(len(reader.pages)):
+            page = reader.pages[page_num]
+            merged_pdf.add_page(page)
     buffer = BytesIO()
     merged_pdf.write(buffer)
     buffer.seek(0)

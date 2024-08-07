@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from weasyprint import HTML
-import tempfile
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -79,28 +78,34 @@ def style_html_content(html_content):
     }
     """
     soup.head.append(style_tag)
+
     return str(soup)
 
 # Function to convert the webpage to PDF
-def convert_to_pdf(html_content):
+def convert_to_pdf(html_content, output_path):
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-            html = HTML(string=html_content)
-            html.write_pdf(temp_file.name)
-            st.success(f"PDF generated successfully: {temp_file.name}")
-            return temp_file.name
+        html = HTML(string=html_content)
+        html.write_pdf(output_path)
+        st.success(f"PDF generated successfully: {output_path}")
     except Exception as e:
         st.error(f"Failed to generate PDF: {e}")
-        return None
 
-# Streamlit app
+# Main Streamlit app
 def main():
     st.title("Webpage to PDF Converter")
 
-    url = st.text_input("Enter the URL of the webpage")
+    num_links = st.number_input("Enter the number of links (1 to 6):", min_value=1, max_value=6, step=1)
+    urls = []
+    for i in range(num_links):
+        url = st.text_input(f"Enter the URL for link {i + 1}:")
 
-    if st.button("Convert to PDF"):
         if url:
+            urls.append(url)
+
+    if st.button("Generate PDF"):
+        combined_html_content = ""
+
+        for url in urls:
             html_content = fetch_webpage(url)
             if html_content:
                 soup = BeautifulSoup(html_content, "html.parser")
@@ -108,20 +113,19 @@ def main():
                 html_with_css = include_css(soup, base_url)
 
                 main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
-
                 styled_html_content = style_html_content(main_content_html)
 
-                output_path = convert_to_pdf(styled_html_content)
-
-                if output_path:
-                    with open(output_path, "rb") as file:
-                        st.download_button(label="Download PDF", data=file, file_name="webpage.pdf", mime="application/pdf")
-                else:
-                    st.error("PDF file not found. Conversion may have failed.")
+                combined_html_content += styled_html_content
             else:
-                st.error("Failed to retrieve the webpage content.")
+                st.error(f"Failed to retrieve the webpage content for URL: {url}")
+
+        if combined_html_content:
+            output_path = "combined_webpage.pdf"
+            convert_to_pdf(combined_html_content, output_path)
+            with open(output_path, "rb") as file:
+                st.download_button(label="Download PDF", data=file, file_name=output_path, mime="application/pdf")
         else:
-            st.error("Please enter a valid URL.")
+            st.warning("No valid content to generate PDF.")
 
 if __name__ == "__main__":
     main()

@@ -6,6 +6,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
+import os
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -107,10 +108,15 @@ def merge_pdfs(pdfs):
     buffer.seek(0)
     return buffer
 
-# Function to convert the webpage to PDF
-def convert_to_pdf(html_content, output_path):
+# Function to save HTML content to a local file
+def save_html_to_file(html_content, file_path):
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(html_content)
+
+# Function to convert the local HTML file to PDF
+def convert_to_pdf(html_file_path, output_path):
     try:
-        pdfkit.from_string(html_content, output_path)
+        pdfkit.from_file(html_file_path, output_path)
         st.success(f"PDF generated successfully: {output_path}")
     except Exception as e:
         st.error(f"Failed to generate PDF: {e}")
@@ -145,9 +151,13 @@ def main():
                 st.error(f"Failed to retrieve the webpage content for URL: {url}")
 
         if combined_html_content:
-            # Convert the combined HTML to a PDF using pdfkit
+            # Save the combined HTML to a local file
+            html_file_path = "combined_webpage.html"
+            save_html_to_file(combined_html_content, html_file_path)
+
+            # Convert the local HTML file to a PDF using pdfkit
             output_path = "combined_webpage.pdf"
-            convert_to_pdf(combined_html_content, output_path)
+            convert_to_pdf(html_file_path, output_path)
 
             # Create a simple text PDF using ReportLab
             intro_text = "This is an introductory page added to the PDF."

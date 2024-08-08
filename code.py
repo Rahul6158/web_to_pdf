@@ -1,11 +1,8 @@
-import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import pdfkit
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from PyPDF2 import PdfReader, PdfWriter
-from io import BytesIO
+from weasyprint import HTML
+import streamlit as st
+import tempfile
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -32,7 +29,7 @@ def include_css(soup, base_url):
                 style_tag.string = css_response.text
                 link.replace_with(style_tag)
             except requests.RequestException as e:
-                st.error(f"Failed to retrieve CSS file {href}: {e}")
+                st.warning(f"Failed to retrieve CSS file {href}: {e}")
     return str(soup)
 
 # Function to extract the main content of the webpage
@@ -85,81 +82,55 @@ def style_html_content(html_content):
 
     return str(soup)
 
-# Function to create a simple text PDF
-def create_simple_text_pdf(text):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    c.drawString(100, 750, text)
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-# Function to merge PDFs
-def merge_pdfs(pdfs):
-    merged_pdf = PdfWriter()
-    for pdf in pdfs:
-        reader = PdfReader(pdf)
-        for page_num in range(len(reader.pages)):
-            page = reader.pages[page_num]
-            merged_pdf.add_page(page)
-    buffer = BytesIO()
-    merged_pdf.write(buffer)
-    buffer.seek(0)
-    return buffer
-
 # Function to convert the webpage to PDF
-def convert_to_pdf(html_content, output_path):
+def convert_to_pdf(html_content):
     try:
-        pdfkit.from_string(html_content, output_path)
-        st.success(f"PDF generated successfully: {output_path}")
+        html = HTML(string=html_content)
+        pdf = html.write_pdf()
+        return pdf
     except Exception as e:
         st.error(f"Failed to generate PDF: {e}")
+        return None
 
-# Main Streamlit app
+# Main function for Streamlit
 def main():
     st.title("Webpage to PDF Converter")
 
     num_links = st.number_input("Enter the number of links (1 to 6):", min_value=1, max_value=6, step=1)
-    urls = []
-    for i in range(num_links):
-        url = st.text_input(f"Enter the URL for link {i + 1}:")
 
-        if url:
-            urls.append(url)
+    urls = [st.text_input(f"Enter the URL for link {i + 1}:") for i in range(num_links)]
 
     if st.button("Generate PDF"):
         combined_html_content = ""
 
         for url in urls:
-            html_content = fetch_webpage(url)
-            if html_content:
-                soup = BeautifulSoup(html_content, "html.parser")
-                base_url = requests.compat.urljoin(url, '/')
-                html_with_css = include_css(soup, base_url)
+            if url:
+                html_content = fetch_webpage(url)
+                if html_content:
+                    soup = BeautifulSoup(html_content, "html.parser")
+                    base_url = requests.compat.urljoin(url, '/')
+                    html_with_css = include_css(soup, base_url)
 
-                main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
-                styled_html_content = style_html_content(main_content_html)
+                    main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
+                    styled_html_content = style_html_content(main_content_html)
 
-                combined_html_content += styled_html_content
-            else:
-                st.error(f"Failed to retrieve the webpage content for URL: {url}")
+                    combined_html_content += styled_html_content
+                else:
+                    st.warning(f"Failed to retrieve the webpage content for URL: {url}")
 
         if combined_html_content:
-            # Convert the combined HTML to a PDF using pdfkit
-            output_path = "combined_webpage.pdf"
-            convert_to_pdf(combined_html_content, output_path)
-
-            # Create a simple text PDF using ReportLab
-            intro_text = "This is an introductory page added to the PDF."
-            intro_pdf = create_simple_text_pdf(intro_text)
-
-            # Merge the intro PDF with the pdfkit PDF
-            with open(output_path, "rb") as file:
-                pdfkit_pdf = file.read()
-            final_pdf = merge_pdfs([intro_pdf, BytesIO(pdfkit_pdf)])
-
-            # Provide the final merged PDF for download
-            st.download_button(label="Download PDF", data=final_pdf, file_name="final_combined_webpage.pdf", mime="application/pdf")
+            pdf = convert_to_pdf(combined_html_content)
+            if pdf:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+                    temp_file.write(pdf)
+                    temp_file.flush()
+                    st.success("PDF generated successfully!")
+                    st.download_button(
+                        label="Download PDF",
+                        data=pdf,
+                        file_name="combined_webpage.pdf",
+                        mime="application/pdf"
+                    )
         else:
             st.warning("No valid content to generate PDF.")
 

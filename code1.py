@@ -3,9 +3,6 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pdfkit
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 import tempfile
 
@@ -87,28 +84,6 @@ def style_html_content(html_content):
 
     return str(soup)
 
-# Function to create a simple text PDF
-def create_simple_text_pdf(text):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    c.drawString(100, 750, text)
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-# Function to merge PDFs
-def merge_pdfs(pdfs):
-    merged_pdf = PdfWriter()
-    for pdf in pdfs:
-        reader = PdfReader(pdf)
-        for page_num in range(len(reader.pages)):
-            page = reader.pages[page_num]
-            merged_pdf.add_page(page)
-    buffer = BytesIO()
-    merged_pdf.write(buffer)
-    buffer.seek(0)
-    return buffer
-
 # Function to convert the HTML content to a PDF
 def convert_html_to_pdf(html_content):
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as html_file:
@@ -165,18 +140,10 @@ def main():
             pdf_content = convert_html_to_pdf(combined_html_content)
 
             if pdf_content:
-                # Create a simple text PDF using ReportLab
-                intro_text = "This is an introductory page added to the PDF."
-                intro_pdf = create_simple_text_pdf(intro_text)
-
-                # Merge the intro PDF with the pdfkit PDF
-                final_pdf = merge_pdfs([intro_pdf, BytesIO(pdf_content)])
-
-                # Provide the final merged PDF for download
-                st.download_button(label="Download PDF", data=final_pdf, file_name="final_combined_webpage.pdf", mime="application/pdf")
+                # Provide the final PDF for download
+                st.download_button(label="Download PDF", data=pdf_content, file_name="combined_webpage.pdf", mime="application/pdf")
         else:
             st.warning("No valid content to generate PDF.")
 
 if __name__ == "__main__":
     main()
-

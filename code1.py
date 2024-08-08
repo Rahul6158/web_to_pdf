@@ -1,9 +1,9 @@
 import os
-import streamlit as st
+import tempfile
 import requests
 from bs4 import BeautifulSoup
 import pdfkit
-import tempfile
+import streamlit as st
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -21,7 +21,7 @@ def include_css(soup, base_url):
     for link in css_links:
         href = link.get("href")
         if href:
-            if not href.startswith("http"):
+            if not href.startswith(("http", "https")):
                 href = requests.compat.urljoin(base_url, href)
             try:
                 css_response = requests.get(href)
@@ -30,7 +30,8 @@ def include_css(soup, base_url):
                 style_tag.string = css_response.text
                 link.replace_with(style_tag)
             except requests.RequestException as e:
-                st.error(f"Failed to retrieve CSS file {href}: {e}")
+                st.warning(f"Failed to retrieve CSS file {href}: {e}")
+                # Proceed without inlining this CSS file
     return str(soup)
 
 # Function to extract the main content of the webpage
@@ -85,8 +86,8 @@ def style_html_content(html_content):
 
 # Function to convert the HTML content to a PDF
 def convert_html_to_pdf(html_content):
-    with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as html_file:
-        html_file.write(html_content.encode('utf-8'))
+    with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode='w', encoding='utf-8') as html_file:
+        html_file.write(html_content)
         html_file_path = html_file.name
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_file:

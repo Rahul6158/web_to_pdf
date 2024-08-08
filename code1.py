@@ -30,8 +30,7 @@ def include_css(soup, base_url):
                 link.replace_with(style_tag)
             except requests.RequestException as e:
                 print(f"Failed to retrieve CSS file {href}: {e}")
-                # Remove the link tag if CSS can't be fetched
-                link.decompose()
+                link.decompose()  # Remove the link tag if CSS can't be fetched
     return str(soup)
 
 # Function to extract the main content of the webpage

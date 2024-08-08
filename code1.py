@@ -1,12 +1,8 @@
-import os
-import tempfile
 import requests
 from bs4 import BeautifulSoup
-import pdfkit
-import streamlit as st
-
-# Set the environment variable for runtime directory
-os.environ['XDG_RUNTIME_DIR'] = '/tmp'
+from weasyprint import HTML
+import tempfile
+import os
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -15,7 +11,7 @@ def fetch_webpage(url):
         response.raise_for_status()
         return response.text
     except requests.RequestException as e:
-        st.error(f"Failed to retrieve the webpage: {e}")
+        print(f"Failed to retrieve the webpage: {e}")
         return None
 
 # Function to fetch external CSS files and include them in the HTML content
@@ -24,7 +20,7 @@ def include_css(soup, base_url):
     for link in css_links:
         href = link.get("href")
         if href:
-            if not href.startswith(("http", "https")):
+            if not href.startswith("http"):
                 href = requests.compat.urljoin(base_url, href)
             try:
                 css_response = requests.get(href)
@@ -33,8 +29,9 @@ def include_css(soup, base_url):
                 style_tag.string = css_response.text
                 link.replace_with(style_tag)
             except requests.RequestException as e:
-                st.warning(f"Failed to retrieve CSS file {href}: {e}")
-                # Proceed without inlining this CSS file
+                print(f"Failed to retrieve CSS file {href}: {e}")
+                # Remove the link tag if CSS can't be fetched
+                link.decompose()
     return str(soup)
 
 # Function to extract the main content of the webpage
@@ -45,7 +42,7 @@ def extract_main_content(soup):
     if main_content:
         return str(main_content)
     else:
-        st.warning("Main content not found, using full page content.")
+        print("Main content not found, using full page content.")
         return str(soup)
 
 # Function to modify the HTML to center-align images and add custom styles
@@ -87,66 +84,65 @@ def style_html_content(html_content):
 
     return str(soup)
 
-# Function to convert the HTML content to a PDF
-def convert_html_to_pdf(html_content):
-    with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode='w', encoding='utf-8') as html_file:
-        html_file.write(html_content)
-        html_file_path = html_file.name
-
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_file:
-        pdf_file_path = pdf_file.name
-
+# Function to convert the webpage to PDF
+def convert_to_pdf(html_content, output_path):
     try:
-        pdfkit.from_file(html_file_path, pdf_file_path)
-        with open(pdf_file_path, "rb") as f:
-            pdf_content = f.read()
-        return pdf_content
+        # Create a temporary HTML file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".html", mode="w", encoding="utf-8") as temp_html_file:
+            temp_html_file.write(html_content)
+            temp_html_path = temp_html_file.name
+        
+        # Convert the temporary HTML file to PDF
+        html = HTML(filename=temp_html_path)
+        html.write_pdf(output_path)
+        print(f"PDF generated successfully: {output_path}")
+        
+        # Clean up temporary file
+        os.remove(temp_html_path)
     except Exception as e:
-        st.error(f"Failed to generate PDF: {e}")
-        return None
-    finally:
-        # Clean up temporary files
-        os.remove(html_file_path)
-        os.remove(pdf_file_path)
+        print(f"Failed to generate PDF: {e}")
 
-# Main Streamlit app
+# Main function
 def main():
-    st.title("Webpage to PDF Converter")
+    try:
+        num_links = int(input("Enter the number of links (1 to 6): ").strip())
+        if num_links < 1 or num_links > 6:
+            print("Please enter a number between 1 and 6.")
+            return
+    except ValueError:
+        print("Invalid input. Please enter a number between 1 and 6.")
+        return
 
-    num_links = st.number_input("Enter the number of links (1 to 6):", min_value=1, max_value=6, step=1)
     urls = []
     for i in range(num_links):
-        url = st.text_input(f"Enter the URL for link {i + 1}:")
-
+        url = input(f"Enter the URL for link {i + 1}: ").strip()
         if url:
             urls.append(url)
-
-    if st.button("Generate PDF"):
-        combined_html_content = ""
-
-        for url in urls:
-            html_content = fetch_webpage(url)
-            if html_content:
-                soup = BeautifulSoup(html_content, "html.parser")
-                base_url = requests.compat.urljoin(url, '/')
-                html_with_css = include_css(soup, base_url)
-
-                main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
-                styled_html_content = style_html_content(main_content_html)
-
-                combined_html_content += styled_html_content
-            else:
-                st.error(f"Failed to retrieve the webpage content for URL: {url}")
-
-        if combined_html_content:
-            # Convert the combined HTML to a PDF using pdfkit
-            pdf_content = convert_html_to_pdf(combined_html_content)
-
-            if pdf_content:
-                # Provide the final PDF for download
-                st.download_button(label="Download PDF", data=pdf_content, file_name="combined_webpage.pdf", mime="application/pdf")
         else:
-            st.warning("No valid content to generate PDF.")
+            print("Invalid URL. Please try again.")
+            return
+
+    combined_html_content = ""
+
+    for url in urls:
+        html_content = fetch_webpage(url)
+        if html_content:
+            soup = BeautifulSoup(html_content, "html.parser")
+            base_url = requests.compat.urljoin(url, '/')
+            html_with_css = include_css(soup, base_url)
+
+            main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
+            styled_html_content = style_html_content(main_content_html)
+
+            combined_html_content += styled_html_content
+        else:
+            print(f"Failed to retrieve the webpage content for URL: {url}")
+
+    if combined_html_content:
+        output_path = "combined_webpage.pdf"
+        convert_to_pdf(combined_html_content, output_path)
+    else:
+        print("No valid content to generate PDF.")
 
 if __name__ == "__main__":
     main()

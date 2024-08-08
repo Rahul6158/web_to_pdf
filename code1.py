@@ -1,4 +1,4 @@
-import os 
+import os
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -8,6 +8,9 @@ from reportlab.lib.pagesizes import letter
 from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 import tempfile
+
+# Set the XDG_RUNTIME_DIR environment variable
+os.environ['XDG_RUNTIME_DIR'] = tempfile.gettempdir()
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -161,15 +164,15 @@ def main():
                 st.error(f"Failed to retrieve the webpage content for URL: {url}")
 
         if combined_html_content:
-            # Convert the combined HTML content to a PDF
+            # Convert the combined HTML to a PDF using pdfkit
             pdf_content = convert_html_to_pdf(combined_html_content)
 
             if pdf_content:
                 # Create a simple text PDF using ReportLab
-                intro_text = "This is an introductory page added to the PDF."
+                intro_text = "This is an introductory page added to the PDF> Swarnandhra college of engoineering and technology."
                 intro_pdf = create_simple_text_pdf(intro_text)
 
-                # Merge the intro PDF with the generated PDF
+                # Merge the intro PDF with the pdfkit PDF
                 final_pdf = merge_pdfs([intro_pdf, BytesIO(pdf_content)])
 
                 # Provide the final merged PDF for download

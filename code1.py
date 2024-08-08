@@ -5,7 +5,9 @@ from bs4 import BeautifulSoup
 import pdfkit
 import streamlit as st
 
+# Set the environment variable for runtime directory
 os.environ['XDG_RUNTIME_DIR'] = '/tmp'
+
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
     try:

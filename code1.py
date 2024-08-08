@@ -3,7 +3,6 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pdfkit
-from io import BytesIO
 import tempfile
 
 # Function to fetch and parse the webpage

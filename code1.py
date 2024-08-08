@@ -9,9 +9,6 @@ from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 import tempfile
 
-# Set the XDG_RUNTIME_DIR environment variable
-os.environ['XDG_RUNTIME_DIR'] = tempfile.gettempdir()
-
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
     try:
@@ -169,7 +166,7 @@ def main():
 
             if pdf_content:
                 # Create a simple text PDF using ReportLab
-                intro_text = "This is an introductory page added to the PDF> Swarnandhra college of engoineering and technology."
+                intro_text = "This is an introductory page added to the PDF."
                 intro_pdf = create_simple_text_pdf(intro_text)
 
                 # Merge the intro PDF with the pdfkit PDF
@@ -182,3 +179,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+`

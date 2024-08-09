@@ -41,7 +41,7 @@ def extract_main_content(soup):
         return str(main_content)
     else:
         st.warning("Main content not found, using full page content.")
-        return str(soup)
+        return str(soup)  # Return the full page content
 
 # Function to modify the HTML to center-align images and add custom styles
 def style_html_content(html_content):
@@ -111,6 +111,7 @@ def main():
                     base_url = requests.compat.urljoin(url, '/')
                     html_with_css = include_css(soup, base_url)
 
+                    # Extract the main content or use full page content if main content is missing
                     main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
                     styled_html_content = style_html_content(main_content_html)
 

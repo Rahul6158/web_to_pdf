@@ -7,3 +7,5 @@ reportlab==3.6.12
 pdfkit
 fitz
 PyMuPDF
+pdf2image 
+Pillow

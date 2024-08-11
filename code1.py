@@ -36,12 +36,22 @@ def include_css(soup, base_url):
 def extract_main_content(soup):
     main_content = soup.find('main') or soup.find('article')
     if not main_content:
-        main_content = soup.find('div', class_='main-content') or soup.find('div', id='main-content') or soup.find('div', class_='content') or soup.find('div', id='content')
+        # Try other common main content containers
+        main_content = (
+            soup.find('div', class_='main-content') or 
+            soup.find('div', id='main-content') or 
+            soup.find('div', class_='content') or 
+            soup.find('div', id='content') or 
+            soup.find('div', class_='primary-content')
+        )
     if main_content:
+        # Remove common sidebar elements
+        for sidebar in main_content.find_all(['aside', 'nav', 'header', 'footer']):
+            sidebar.decompose()
         return str(main_content)
     else:
         st.warning("Main content not found, using full page content.")
-        return str(soup)  # Return the full page content
+        return str(soup)
 
 # Function to modify the HTML to center-align images and add custom styles
 def style_html_content(html_content):
@@ -111,9 +121,13 @@ def main():
                     base_url = requests.compat.urljoin(url, '/')
                     html_with_css = include_css(soup, base_url)
 
-                    # Extract the main content or use full page content if main content is missing
                     main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
-                    styled_html_content = style_html_content(main_content_html)
+                    
+                    # If main content is not found, use the full page content
+                    if main_content_html:
+                        styled_html_content = style_html_content(main_content_html)
+                    else:
+                        styled_html_content = style_html_content(html_with_css)
 
                     combined_html_content += styled_html_content
                 else:

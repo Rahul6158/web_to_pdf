@@ -155,15 +155,19 @@ def main():
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
                     temp_file.write(pdf)
                     temp_file.flush()
-                    st.success("PDF generated successfully!")
+                    temp_file_name = temp_file.name
+
+                # Display the PDF in Streamlit
+                st.success("PDF generated successfully!")
+                with open(temp_file_name, "rb") as file:
                     st.download_button(
                         label="Download PDF",
-                        data=pdf,
+                        data=file,
                         file_name="combined_webpage.pdf",
                         mime="application/pdf"
                     )
-        else:
-            st.warning("No valid content to generate PDF.")
+                    # Show PDF preview
+                    st.pdf(file)
 
 if __name__ == "__main__":
     main()

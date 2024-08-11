@@ -1,174 +1,215 @@
-import requests
-from bs4 import BeautifulSoup
-from weasyprint import HTML
 import streamlit as st
-import tempfile
-import fitz  # PyMuPDF
+from PyPDF2 import PdfFileReader, PdfFileWriter
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
-# Function to fetch and parse the webpage
-def fetch_webpage(url):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.text
-    except requests.RequestException as e:
-        st.error(f"Failed to retrieve the webpage: {e}")
-        return None
+# Helper function to create a PDF with text
+def create_pdf(text):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    c.drawString(100, 750, text)
+    c.save()
+    buffer.seek(0)
+    return buffer
 
-# Function to fetch external CSS files and include them in the HTML content
-def include_css(soup, base_url):
-    css_links = soup.find_all("link", rel="stylesheet")
-    for link in css_links:
-        href = link.get("href")
-        if href:
-            if not href.startswith("http"):
-                href = requests.compat.urljoin(base_url, href)
-            try:
-                css_response = requests.get(href)
-                css_response.raise_for_status()
-                style_tag = soup.new_tag("style", type="text/css")
-                style_tag.string = css_response.text
-                link.replace_with(style_tag)
-            except requests.RequestException as e:
-                st.warning(f"Failed to retrieve CSS file {href}: {e}")
-    return str(soup)
+# Helper function to read PDF and return text
+def extract_text_from_first_page(pdf_file):
+    pdf = PdfFileReader(pdf_file)
+    first_page = pdf.getPage(0)
+    return first_page.extract_text()
 
-# Function to extract the main content of the webpage
-def extract_main_content(soup):
-    main_content = soup.find('main') or soup.find('article')
-    if not main_content:
-        # Try other common main content containers
-        main_content = (
-            soup.find('div', class_='main-content') or 
-            soup.find('div', id='main-content') or 
-            soup.find('div', class_='content') or 
-            soup.find('div', id='content') or 
-            soup.find('div', class_='primary-content')
-        )
-    if main_content:
-        # Remove common sidebar elements
-        for sidebar in main_content.find_all(['aside', 'nav', 'header', 'footer']):
-            sidebar.decompose()
-        return str(main_content)
-    else:
-        st.warning("Main content not found, using full page content.")
-        return str(soup)
+# Helper function to merge PDFs
+def merge_pdfs(pdf_files):
+    merged_pdf = PdfFileWriter()
+    for pdf_file in pdf_files:
+        reader = PdfFileReader(pdf_file)
+        for page_num in range(reader.numPages):
+            page = reader.getPage(page_num)
+            merged_pdf.addPage(page)
+    buffer = BytesIO()
+    merged_pdf.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-# Function to modify the HTML to center-align images and add custom styles
-def style_html_content(html_content):
-    soup = BeautifulSoup(html_content, "html.parser")
+# Helper function to split PDF into separate pages
+def split_pdf(pdf_file):
+    reader = PdfFileReader(pdf_file)
+    pdf_files = []
+    for page_num in range(reader.numPages):
+        writer = PdfFileWriter()
+        writer.addPage(reader.getPage(page_num))
+        buffer = BytesIO()
+        writer.write(buffer)
+        buffer.seek(0)
+        pdf_files.append(buffer)
+    return pdf_files
 
-    if not soup.html:
-        html_tag = soup.new_tag("html")
-        soup.insert(0, html_tag)
-    if not soup.head:
-        head_tag = soup.new_tag("head")
-        soup.html.insert(0, head_tag)
+# Helper function to rotate PDF pages
+def rotate_pdf(pdf_file, rotation):
+    reader = PdfFileReader(pdf_file)
+    writer = PdfFileWriter()
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        page.rotateClockwise(rotation)
+        writer.addPage(page)
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-    style_tag = soup.new_tag("style")
-    style_tag.string = """
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+# Helper function to add watermark to PDF
+def add_watermark(pdf_file, watermark_text):
+    reader = PdfFileReader(pdf_file)
+    writer = PdfFileWriter()
+    watermark_pdf = create_pdf(watermark_text)
+    watermark_reader = PdfFileReader(watermark_pdf)
+    watermark_page = watermark_reader.getPage(0)
 
-    body {
-        font-family: 'Roboto', sans-serif;
-        line-height: 1.6;
-        margin: 0;
-        padding: 20px;
-    }
-    h1, h2, h3, h4, h5, h6 {
-        font-weight: 700;
-    }
-    img {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-        width: 70%;
-        height: auto;
-    }
-    p {
-        text-align: justify;
-    }
-    """
-    soup.head.append(style_tag)
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        page.merge_page(watermark_page)
+        writer.addPage(page)
+    
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-    return str(soup)
+# Helper function to encrypt PDF
+def encrypt_pdf(pdf_file, password):
+    reader = PdfFileReader(pdf_file)
+    writer = PdfFileWriter()
+    
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        writer.addPage(page)
+    
+    writer.encrypt(password)
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-# Function to convert the webpage to PDF
-def convert_to_pdf(html_content):
-    try:
-        html = HTML(string=html_content)
-        pdf = html.write_pdf()
-        return pdf
-    except Exception as e:
-        st.error(f"Failed to generate PDF: {e}")
-        return None
+# Helper function to decrypt PDF
+def decrypt_pdf(pdf_file, password):
+    reader = PdfFileReader(pdf_file)
+    if reader.isEncrypted:
+        reader.decrypt(password)
+    
+    writer = PdfFileWriter()
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
+        writer.addPage(page)
+    
+    buffer = BytesIO()
+    writer.write(buffer)
+    buffer.seek(0)
+    return buffer
 
-# Function to view PDF using PyMuPDF
-def view_pdf(pdf_file):
-    pdf_document = fitz.open(stream=pdf_file.read(), filetype="pdf")
-    num_pages = pdf_document.page_count
-    st.write(f"Number of pages: {num_pages}")
-
-    for page_num in range(num_pages):
-        page = pdf_document.load_page(page_num)
-        pix = page.get_pixmap()
-        img = pix.tobytes()
-        st.image(img, caption=f"Page {page_num + 1}", use_column_width=True)
-
-# Main function for Streamlit
 def main():
-    st.title("Webpage to PDF Converter")
+    st.title("PDF Editor Tool")
 
-    num_links = st.number_input("Enter the number of links (1 to 6):", min_value=1, max_value=6, step=1)
+    menu = ["Create PDF", "Extract Text", "Merge PDFs", "Split PDF", "Rotate PDF", 
+            "Add Watermark", "Encrypt PDF", "Decrypt PDF"]
+    choice = st.sidebar.selectbox("Menu", menu)
 
-    urls = [st.text_input(f"Enter the URL for link {i + 1}:") for i in range(num_links)]
+    if choice == "Create PDF":
+        st.subheader("Create PDF")
+        text = st.text_area("Enter text to add to PDF")
+        if st.button("Create PDF"):
+            pdf = create_pdf(text)
+            st.download_button(
+                label="Download PDF",
+                data=pdf,
+                file_name="created_pdf.pdf",
+                mime="application/pdf"
+            )
 
-    if st.button("Generate PDF"):
-        combined_html_content = ""
+    elif choice == "Extract Text":
+        st.subheader("Extract Text from PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        if pdf_file is not None:
+            text = extract_text_from_first_page(pdf_file)
+            st.write("Extracted Text:")
+            st.write(text)
 
-        for url in urls:
-            if url:
-                html_content = fetch_webpage(url)
-                if html_content:
-                    soup = BeautifulSoup(html_content, "html.parser")
-                    base_url = requests.compat.urljoin(url, '/')
-                    html_with_css = include_css(soup, base_url)
+    elif choice == "Merge PDFs":
+        st.subheader("Merge PDFs")
+        pdf_files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
+        if st.button("Merge PDFs"):
+            merged_pdf = merge_pdfs(pdf_files)
+            st.download_button(
+                label="Download Merged PDF",
+                data=merged_pdf,
+                file_name="merged_pdf.pdf",
+                mime="application/pdf"
+            )
 
-                    main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
-                    
-                    # If main content is not found, use the full page content
-                    if main_content_html:
-                        styled_html_content = style_html_content(main_content_html)
-                    else:
-                        styled_html_content = style_html_content(html_with_css)
+    elif choice == "Split PDF":
+        st.subheader("Split PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        if st.button("Split PDF"):
+            split_files = split_pdf(pdf_file)
+            for i, pdf in enumerate(split_files):
+                st.download_button(
+                    label=f"Download Page {i+1}",
+                    data=pdf,
+                    file_name=f"page_{i+1}.pdf",
+                    mime="application/pdf"
+                )
 
-                    combined_html_content += styled_html_content
-                else:
-                    st.warning(f"Failed to retrieve the webpage content for URL: {url}")
+    elif choice == "Rotate PDF":
+        st.subheader("Rotate PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        rotation = st.selectbox("Rotation", [90, 180, 270])
+        if st.button("Rotate PDF"):
+            rotated_pdf = rotate_pdf(pdf_file, rotation)
+            st.download_button(
+                label="Download Rotated PDF",
+                data=rotated_pdf,
+                file_name="rotated_pdf.pdf",
+                mime="application/pdf"
+            )
 
-        if combined_html_content:
-            pdf = convert_to_pdf(combined_html_content)
-            if pdf:
-                # Use a temporary file to save the PDF
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-                    temp_file.write(pdf)
-                    temp_file.flush()
-                    
-                    # Provide download button before showing the PDF
-                    st.success("PDF generated successfully!")
-                    st.download_button(
-                        label="Download PDF",
-                        data=pdf,
-                        file_name="combined_webpage.pdf",
-                        mime="application/pdf"
-                    )
-                    
-                    # Display the PDF content
-                    st.write("Preview of the PDF content:")
-                    with open(temp_file.name, "rb") as f:
-                        view_pdf(f)
-        else:
-            st.warning("No valid content to generate PDF.")
+    elif choice == "Add Watermark":
+        st.subheader("Add Watermark to PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        watermark_text = st.text_input("Enter watermark text")
+        if st.button("Add Watermark"):
+            watermarked_pdf = add_watermark(pdf_file, watermark_text)
+            st.download_button(
+                label="Download Watermarked PDF",
+                data=watermarked_pdf,
+                file_name="watermarked_pdf.pdf",
+                mime="application/pdf"
+            )
 
-if __name__ == "__main__":
+    elif choice == "Encrypt PDF":
+        st.subheader("Encrypt PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        password = st.text_input("Enter password", type="password")
+        if st.button("Encrypt PDF"):
+            encrypted_pdf = encrypt_pdf(pdf_file, password)
+            st.download_button(
+                label="Download Encrypted PDF",
+                data=encrypted_pdf,
+                file_name="encrypted_pdf.pdf",
+                mime="application/pdf"
+            )
+
+    elif choice == "Decrypt PDF":
+        st.subheader("Decrypt PDF")
+        pdf_file = st.file_uploader("Upload PDF", type="pdf")
+        password = st.text_input("Enter password", type="password")
+        if st.button("Decrypt PDF"):
+            decrypted_pdf = decrypt_pdf(pdf_file, password)
+            st.download_button(
+                label="Download Decrypted PDF",
+                data=decrypted_pdf,
+                file_name="decrypted_pdf.pdf",
+                mime="application/pdf"
+            )
+
+if __name__ == '__main__':
     main()

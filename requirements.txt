@@ -9,3 +9,4 @@ fitz
 PyMuPDF
 pdf2image 
 Pillow
+poppler

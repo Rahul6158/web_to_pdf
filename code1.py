@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from weasyprint import HTML
+from weasyprint import HTML, CSS
 import streamlit as st
 import tempfile
 
@@ -53,6 +53,19 @@ def extract_main_content(soup):
         st.warning("Main content not found, using full page content.")
         return str(soup)
 
+# Function to clean up the HTML by removing excessive whitespace and empty elements
+def clean_html(soup):
+    # Remove empty tags that can create extra space
+    for tag in soup.find_all():
+        if not tag.get_text(strip=True) and not tag.name == 'img':
+            tag.extract()
+    
+    # Remove excessive whitespace
+    for element in soup.find_all(text=True):
+        element.replace_with(element.strip())
+
+    return str(soup)
+
 # Function to modify the HTML to center-align images and add custom styles
 def style_html_content(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
@@ -90,13 +103,13 @@ def style_html_content(html_content):
     """
     soup.head.append(style_tag)
 
-    return str(soup)
+    return clean_html(soup)
 
 # Function to convert the webpage to PDF
 def convert_to_pdf(html_content):
     try:
         html = HTML(string=html_content)
-        pdf = html.write_pdf()
+        pdf = html.write_pdf(stylesheets=[CSS(string="body { margin: 0; padding: 0; }")])
         return pdf
     except Exception as e:
         st.error(f"Failed to generate PDF: {e}")

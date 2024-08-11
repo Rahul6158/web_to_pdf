@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 from weasyprint import HTML
 import streamlit as st
 import tempfile
-import base64
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -32,19 +31,6 @@ def include_css(soup, base_url):
             except requests.RequestException as e:
                 st.warning(f"Failed to retrieve CSS file {href}: {e}")
     return str(soup)
-
-# Function to remove advertisements from the HTML content
-def remove_advertisements(soup):
-    ad_keywords = ['ad', 'advertisement', 'sponsored', 'promo', 'ads', 'banner', 'pop-up']
-    
-    # Remove elements by class or ID
-    for keyword in ad_keywords:
-        for element in soup.find_all(attrs={"class": lambda x: x and keyword in x.lower()}):
-            element.decompose()
-        for element in soup.find_all(attrs={"id": lambda x: x and keyword in x.lower()}):
-            element.decompose()
-    
-    return soup
 
 # Function to extract the main content of the webpage
 def extract_main_content(soup):
@@ -116,12 +102,6 @@ def convert_to_pdf(html_content):
         st.error(f"Failed to generate PDF: {e}")
         return None
 
-# Function to display PDF in an iframe
-def display_pdf(pdf_data):
-    base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="900" type="application/pdf"></iframe>'
-    st.markdown(pdf_display, unsafe_allow_html=True)
-
 # Main function for Streamlit
 def main():
     st.title("Webpage to PDF Converter")
@@ -141,10 +121,7 @@ def main():
                     base_url = requests.compat.urljoin(url, '/')
                     html_with_css = include_css(soup, base_url)
 
-                    # Remove advertisements
-                    soup = remove_advertisements(soup)
-
-                    main_content_html = extract_main_content(soup)
+                    main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
                     
                     # If main content is not found, use the full page content
                     if main_content_html:
@@ -159,14 +136,29 @@ def main():
         if combined_html_content:
             pdf = convert_to_pdf(combined_html_content)
             if pdf:
-                st.success("PDF generated successfully!")
-                display_pdf(pdf)
-                st.download_button(
-                    label="Download PDF",
-                    data=pdf,
-                    file_name="combined_webpage.pdf",
-                    mime="application/pdf"
-                )
+                # Use a temporary file to save the PDF
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+                    temp_file.write(pdf)
+                    temp_file.flush()
+                    
+                    # Provide download button before showing the PDF
+                    st.success("PDF generated successfully!")
+                    st.download_button(
+                        label="Download PDF",
+                        data=pdf,
+                        file_name="combined_webpage.pdf",
+                        mime="application/pdf"
+                    )
+                    
+                    # Display the PDF
+                    st.write("Preview of the PDF:")
+                    with open(temp_file.name, "rb") as f:
+                        st.download_button(
+                            label="View PDF",
+                            data=f.read(),
+                            file_name="combined_webpage.pdf",
+                            mime="application/pdf"
+                        )
         else:
             st.warning("No valid content to generate PDF.")
 

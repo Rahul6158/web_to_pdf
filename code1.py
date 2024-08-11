@@ -32,6 +32,19 @@ def include_css(soup, base_url):
                 st.warning(f"Failed to retrieve CSS file {href}: {e}")
     return str(soup)
 
+# Function to remove advertisements from the HTML content
+def remove_advertisements(soup):
+    ad_keywords = ['ad', 'advertisement', 'sponsored', 'promo', 'ads', 'banner', 'pop-up']
+    
+    # Remove elements by class or ID
+    for keyword in ad_keywords:
+        for element in soup.find_all(attrs={"class": lambda x: x and keyword in x.lower()}):
+            element.decompose()
+        for element in soup.find_all(attrs={"id": lambda x: x and keyword in x.lower()}):
+            element.decompose()
+    
+    return soup
+
 # Function to extract the main content of the webpage
 def extract_main_content(soup):
     main_content = soup.find('main') or soup.find('article')
@@ -134,7 +147,10 @@ def main():
                     base_url = requests.compat.urljoin(url, '/')
                     html_with_css = include_css(soup, base_url)
 
-                    main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
+                    # Remove advertisements
+                    soup = remove_advertisements(soup)
+
+                    main_content_html = extract_main_content(soup)
                     
                     # If main content is not found, use the full page content
                     if main_content_html:

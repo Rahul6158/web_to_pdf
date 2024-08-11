@@ -9,8 +9,3 @@ PyMuPDF
 pdf2image 
 Pillow
 fitz
-streamlit
-PyMuPDF
-requests
-beautifulsoup4
-weasyprint

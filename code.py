@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from weasyprint import HTML
 import streamlit as st
 import tempfile
+import fitz  # PyMuPDF
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -36,8 +37,18 @@ def include_css(soup, base_url):
 def extract_main_content(soup):
     main_content = soup.find('main') or soup.find('article')
     if not main_content:
-        main_content = soup.find('div', class_='main-content') or soup.find('div', id='main-content') or soup.find('div', class_='content') or soup.find('div', id='content')
+        # Try other common main content containers
+        main_content = (
+            soup.find('div', class_='main-content') or 
+            soup.find('div', id='main-content') or 
+            soup.find('div', class_='content') or 
+            soup.find('div', id='content') or 
+            soup.find('div', class_='primary-content')
+        )
     if main_content:
+        # Remove common sidebar elements
+        for sidebar in main_content.find_all(['aside', 'nav', 'header', 'footer']):
+            sidebar.decompose()
         return str(main_content)
     else:
         st.warning("Main content not found, using full page content.")
@@ -92,6 +103,18 @@ def convert_to_pdf(html_content):
         st.error(f"Failed to generate PDF: {e}")
         return None
 
+# Function to view PDF using PyMuPDF
+def view_pdf(pdf_file):
+    pdf_document = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    num_pages = pdf_document.page_count
+    st.write(f"Number of pages: {num_pages}")
+
+    for page_num in range(num_pages):
+        page = pdf_document.load_page(page_num)
+        pix = page.get_pixmap()
+        img = pix.tobytes()
+        st.image(img, caption=f"Page {page_num + 1}", use_column_width=True)
+
 # Main function for Streamlit
 def main():
     st.title("Webpage to PDF Converter")
@@ -112,7 +135,12 @@ def main():
                     html_with_css = include_css(soup, base_url)
 
                     main_content_html = extract_main_content(BeautifulSoup(html_with_css, "html.parser"))
-                    styled_html_content = style_html_content(main_content_html)
+                    
+                    # If main content is not found, use the full page content
+                    if main_content_html:
+                        styled_html_content = style_html_content(main_content_html)
+                    else:
+                        styled_html_content = style_html_content(html_with_css)
 
                     combined_html_content += styled_html_content
                 else:
@@ -121,9 +149,12 @@ def main():
         if combined_html_content:
             pdf = convert_to_pdf(combined_html_content)
             if pdf:
+                # Use a temporary file to save the PDF
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
                     temp_file.write(pdf)
                     temp_file.flush()
+                    
+                    # Provide download button before showing the PDF
                     st.success("PDF generated successfully!")
                     st.download_button(
                         label="Download PDF",
@@ -131,6 +162,11 @@ def main():
                         file_name="combined_webpage.pdf",
                         mime="application/pdf"
                     )
+                    
+                    # Display the PDF content
+                    st.write("Preview of the PDF content:")
+                    with open(temp_file.name, "rb") as f:
+                        view_pdf(f)
         else:
             st.warning("No valid content to generate PDF.")
 

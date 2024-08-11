@@ -51,7 +51,7 @@ def extract_main_content(soup):
             sidebar.decompose()
         return str(main_content)
     else:
-        st.warning("Main content not found, using full page content.")
+        st.warning("Main content not found, using full page content. Please wait, generting PDF..........")
         return str(soup)
 
 # Function to modify the HTML to center-align images and add custom styles

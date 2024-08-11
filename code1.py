@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from weasyprint import HTML
 import streamlit as st
 import tempfile
+import PyPDF2
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -102,6 +103,14 @@ def convert_to_pdf(html_content):
         st.error(f"Failed to generate PDF: {e}")
         return None
 
+# Function to extract text from PDF
+def extract_text_from_pdf(pdf_file):
+    pdf_reader = PyPDF2.PdfFileReader(pdf_file)
+    content = ""
+    for page in range(pdf_reader.getNumPages()):
+        content += pdf_reader.getPage(page).extract_text()
+    return content
+
 # Main function for Streamlit
 def main():
     st.title("Webpage to PDF Converter")
@@ -150,15 +159,11 @@ def main():
                         mime="application/pdf"
                     )
                     
-                    # Display the PDF
-                    st.write("Preview of the PDF:")
+                    # Display the PDF content as text
+                    st.write("Preview of the PDF content:")
                     with open(temp_file.name, "rb") as f:
-                        st.download_button(
-                            label="View PDF",
-                            data=f.read(),
-                            file_name="combined_webpage.pdf",
-                            mime="application/pdf"
-                        )
+                        pdf_text = extract_text_from_pdf(f)
+                        st.write(pdf_text)
         else:
             st.warning("No valid content to generate PDF.")
 

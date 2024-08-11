@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from weasyprint import HTML
 import streamlit as st
 import tempfile
+import base64
 
 # Function to fetch and parse the webpage
 def fetch_webpage(url):
@@ -115,6 +116,12 @@ def convert_to_pdf(html_content):
         st.error(f"Failed to generate PDF: {e}")
         return None
 
+# Function to display PDF in an iframe
+def display_pdf(pdf_data):
+    base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="900" type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
 # Main function for Streamlit
 def main():
     st.title("Webpage to PDF Converter")
@@ -152,22 +159,16 @@ def main():
         if combined_html_content:
             pdf = convert_to_pdf(combined_html_content)
             if pdf:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-                    temp_file.write(pdf)
-                    temp_file.flush()
-                    temp_file_name = temp_file.name
-
-                # Display the PDF in Streamlit
                 st.success("PDF generated successfully!")
-                with open(temp_file_name, "rb") as file:
-                    st.download_button(
-                        label="Download PDF",
-                        data=file,
-                        file_name="combined_webpage.pdf",
-                        mime="application/pdf"
-                    )
-                    # Show PDF preview
-                    st.pdf(file)
+                display_pdf(pdf)
+                st.download_button(
+                    label="Download PDF",
+                    data=pdf,
+                    file_name="combined_webpage.pdf",
+                    mime="application/pdf"
+                )
+        else:
+            st.warning("No valid content to generate PDF.")
 
 if __name__ == "__main__":
     main()
